@@ -1,19 +1,19 @@
-plugins {
+ plugins {
     id 'java'
-}
+     id 'org.jetbrains.kotlin.jvm'
+ }
 
 repositories {
     mavenLocal()
     mavenCentral()
-// TODO: uncomment to be able to fetch packages in your own repository
-//    maven {
-//        name = "GitHubPackages"
-//        url = uri("https://maven.pkg.github.com/<your-username>/printscript")
-//        credentials {
-//            username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
-//            password = project.findProperty("gpr.key") ?: System.getenv("TOKEN")
-//        }
-//    }
+    maven {
+        name = "GitHubPackages"
+        url = uri("https://maven.pkg.github.com/IngSis25/PrintScript")
+        credentials {
+            username = findProperty('gpr.user') ?: System.getenv('GITHUB_ACTOR')
+            password = findProperty('gpr.key')  ?: System.getenv('GITHUB_TOKEN')
+        }
+    }
 }
 
 java {
@@ -29,9 +29,19 @@ test {
 
 dependencies {
     testImplementation 'junit:junit:4.13.1'
+    implementation 'com.google.code.gson:gson:2.8.9'
+    implementation 'io.printscript:lexer:0.1.2-SNAPSHOT'
+    implementation 'io.printscript:parser:0.1.2-SNAPSHOT'
+    implementation 'io.printscript:interpreter:0.1.2-SNAPSHOT'
+    implementation 'io.printscript:analyzer:0.1.2-SNAPSHOT'
+    implementation 'io.printscript:cli:0.1.2-SNAPSHOT'
+    implementation 'io.printscript:formatter:0.1.2-SNAPSHOT'
+    implementation 'io.printscript:common:0.1.2-SNAPSHOT'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib"
 }
 
 test {
     environment "BEST_FOOTBALL_CLUB", "San Lorenzo"
     useJUnit()
 }
+

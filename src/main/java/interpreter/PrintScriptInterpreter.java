@@ -5,6 +5,8 @@ import java.io.InputStream;
 import java.io.Reader;
 
 public interface PrintScriptInterpreter {
+    void interpret(InputStream src, String version, InputProvider input, PrintEmitter output, ErrorHandler handler);
+
     /**
      * executes a PrintScript file handling its resulting messages and errors.
      * @param src Source file.

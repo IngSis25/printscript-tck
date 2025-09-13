@@ -1,7 +1,6 @@
 package linter;
 
 import implementation.CustomImplementationFactory;
-import interpreter.PrintScriptFormatter;
 import interpreter.PrintScriptLinter;
 import org.hamcrest.Matcher;
 import org.junit.Test;
@@ -11,7 +10,6 @@ import util.ErrorCollector;
 
 import java.io.*;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
