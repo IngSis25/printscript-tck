@@ -55,7 +55,7 @@ public class FormatterAdapter implements PrintScriptFormatter {
   private TokenProvider defaultTokenProvider() {
     Map<String, TokenType> map = new LinkedHashMap<>();
 
-    // Palabras clave
+    // Palabras clave (deben ir antes que los identificadores)
     map.put("\\bnumber\\b", types.NumberType.INSTANCE);
     map.put("\\bstring\\b", types.StringType.INSTANCE);
     map.put("\\bconst\\b|\\blet\\b|\\bvar\\b", types.ModifierType.INSTANCE);
@@ -66,18 +66,18 @@ public class FormatterAdapter implements PrintScriptFormatter {
     map.put("[+\\-*/<>]", types.OperatorType.INSTANCE);
 
     // Puntuación necesaria para el lenguaje 1.0
-    map.put(":", types.PunctuationType.INSTANCE);     // ← FALTABA
+    map.put(":", types.PunctuationType.INSTANCE);
     map.put(";", types.PunctuationType.INSTANCE);
     map.put("\\(", types.PunctuationType.INSTANCE);
     map.put("\\)", types.PunctuationType.INSTANCE);
 
     // Literales
     map.put("\"([^\"\\\\]|\\\\.)*\"", org.example.LiteralString.INSTANCE); // comillas dobles
-    map.put("'([^'\\\\]|\\\\.)*'",   org.example.LiteralString.INSTANCE);  // ← FALTABA: comillas simples
+    map.put("'([^'\\\\]|\\\\.)*'",   org.example.LiteralString.INSTANCE);  // comillas simples
     map.put("[0-9]+(?:\\.[0-9]+)?",  org.example.LiteralNumber.INSTANCE);
 
-    // Identificadores
-    map.put("[A-Za-z_][A-Za-z_0-9]*", main.kotlin.lexer.IdentifierType.INSTANCE);
+    // Identificadores (debe ir al final)
+    map.put("[A-Za-z_][A-Za-z_0-9]*", types.IdentifierType.INSTANCE);
 
     return TokenProvider.Companion.fromMap(map);
   }

@@ -61,7 +61,7 @@ public class LinterAdapter implements PrintScriptLinter {
     map.put("[+\\-*/<>]", types.OperatorType.INSTANCE);
     map.put("\"([^\"\\\\]|\\\\.)*\"", org.example.LiteralString.INSTANCE);
     map.put("[0-9]+(?:\\.[0-9]+)?", org.example.LiteralNumber.INSTANCE);
-    map.put("[A-Za-z_][A-Za-z_0-9]*", main.kotlin.lexer.IdentifierType.INSTANCE);
+    map.put("[A-Za-z_][A-Za-z_0-9]*", types.IdentifierType.INSTANCE);
     map.put(";", types.PunctuationType.INSTANCE);
     map.put("\\(", types.PunctuationType.INSTANCE);
     map.put("\\)", types.PunctuationType.INSTANCE);

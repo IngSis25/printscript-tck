@@ -8,6 +8,9 @@ import main.kotlin.lexer.DefaultLexer;
 import main.kotlin.lexer.Lexer;
 import main.kotlin.lexer.Token;
 import main.kotlin.lexer.TokenProvider;
+import main.kotlin.lexer.TokenRule;
+import types.*;
+import types.PrintlnType;
 import main.kotlin.parser.ParseResult;
 import org.example.TokenType;
 import org.example.ast.ASTNode;
@@ -30,6 +33,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiFunction;
+import kotlin.text.Regex;
 
 public class InterpreterAdapter implements PrintScriptInterpreter {
 
@@ -45,7 +49,6 @@ public class InterpreterAdapter implements PrintScriptInterpreter {
       // 2) runtime primitives
       StrategyProvider strategies = PreConfiguredProviders.INSTANCE.getVERSION_1_0();
       Output out = new OutputAdapter(output);
-
       // visit function
       BiFunction<Services, ASTNode, Object> visit = new BiFunction<Services, ASTNode, Object>() {
         @Override public Object apply(Services services, ASTNode node) {
@@ -56,11 +59,19 @@ public class InterpreterAdapter implements PrintScriptInterpreter {
         }
       };
 
-      Services base = new Services(Collections.emptyMap(), out, (s, n) -> visit.apply(s, n));
-
-      // 3) run
+      // 3) run - Actualizar Services después de cada nodo
+      Services currentServices = new Services(Collections.emptyMap(), out, (s, n) -> visit.apply(s, n));
+      
       for (ASTNode node : ast) {
-        visit.apply(base, node);
+        Object result = visit.apply(currentServices, node);
+        // Actualizar el Services con el resultado del nodo para mantener el estado
+        // Esto asegura que las variables declaradas estén disponibles para los siguientes nodos
+        if (result != null) {
+          // Si el nodo devuelve un Services actualizado, usarlo
+          if (result instanceof Services) {
+            currentServices = (Services) result;
+          }
+        }
       }
     } catch (Throwable t) {
       String msg = t.getMessage();
@@ -74,20 +85,44 @@ public class InterpreterAdapter implements PrintScriptInterpreter {
   }
 
   private TokenProvider defaultTokenProvider() {
-    Map<String, TokenType> map = new LinkedHashMap<>();
-    map.put("\\bnumber\\b", types.NumberType.INSTANCE);
-    map.put("\\bstring\\b", types.StringType.INSTANCE);
-    map.put("\\bconst\\b|\\blet\\b|\\bvar\\b", types.ModifierType.INSTANCE);
-    map.put("=", types.AssignmentType.INSTANCE);
-    map.put("==|!=|<=|>=", types.OperatorType.INSTANCE);
-    map.put("[+\\-*/<>]", types.OperatorType.INSTANCE);
-    map.put("\"([^\"\\\\]|\\\\.)*\"", org.example.LiteralString.INSTANCE);
-    map.put("[0-9]+(?:\\.[0-9]+)?", org.example.LiteralNumber.INSTANCE);
-    map.put("[A-Za-z_][A-Za-z_0-9]*", main.kotlin.lexer.IdentifierType.INSTANCE);
-    map.put(";", types.PunctuationType.INSTANCE);
-    map.put("\\(", types.PunctuationType.INSTANCE);
-    map.put("\\)", types.PunctuationType.INSTANCE);
-    return TokenProvider.Companion.fromMap(map);
+    // Reglas ignoradas (exactamente como en ConfiguredTokens.kt)
+    List<TokenRule> ignoredRules = Arrays.asList(
+        new TokenRule(new Regex("\\G[ \\t]+"), types.PunctuationType.INSTANCE, true),
+        new TokenRule(new Regex("\\G(?:\\r?\\n)+"), types.PunctuationType.INSTANCE, true),
+        new TokenRule(new Regex("\\G//.*(?:\\r?\\n|$)"), types.PunctuationType.INSTANCE, true)
+    );
+    
+    // Reglas de tokens V1 (exactamente como en ConfiguredTokens.V1)
+    Map<String, TokenType> v1Map = new LinkedHashMap<>();
+    
+    // Palabras clave (deben ir antes que los identificadores)
+    v1Map.put("\\bnumber\\b", types.NumberType.INSTANCE);
+    v1Map.put("\\bstring\\b", types.StringType.INSTANCE);
+    v1Map.put("\\blet\\b|\\bvar\\b", types.ModifierType.INSTANCE);
+    v1Map.put("\\bprintln\\b", types.PrintlnType.INSTANCE);
+    
+  
+    v1Map.put("==|!=|<=|>=", types.OperatorType.INSTANCE);
+    v1Map.put("=", types.AssignmentType.INSTANCE);
+    v1Map.put("[+\\-*/<>]", types.OperatorType.INSTANCE);
+    
+    // Puntuación necesaria para el lenguaje 1.0
+    v1Map.put(":", types.PunctuationType.INSTANCE);
+    v1Map.put(";", types.PunctuationType.INSTANCE);
+    v1Map.put("\\(", types.PunctuationType.INSTANCE);
+    v1Map.put("\\)", types.PunctuationType.INSTANCE);
+    
+
+    v1Map.put("\"([^\"\\\\]|\\\\.)*\"", org.example.LiteralString.INSTANCE);
+    v1Map.put("[0-9]+(?:\\.[0-9]+)?", org.example.LiteralNumber.INSTANCE);
+
+    v1Map.put("[A-Za-z_][A-Za-z_0-9]*", types.IdentifierType.INSTANCE);
+    
+    // Combinar exactamente como ConfiguredTokens.providerV1()
+    List<TokenRule> allRules = new ArrayList<>(ignoredRules);
+    allRules.addAll(TokenProvider.Companion.fromMap(v1Map).rules());
+    
+    return new TokenProvider(allRules);
   }
 
   private List<ASTNode> parseAll(List<Token> tokens) {
