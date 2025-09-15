@@ -16,7 +16,7 @@ public class FormatterConfigAdapter {
             "enforce-spacing-surrounding-equals", "enforce_spacing_surrounding_equals",
             "enforce-spacing-around-equals", "enforce_spacing_around_equals"
     })
-    public Boolean spaceAroundEquals = null;  // ✅ CAMBIO: true → null
+    public Boolean spaceAroundEquals = null;
 
     @SerializedName(value = "spaceBeforeColon", alternate = {
             "space_before_colon", "space-before-colon",
@@ -41,21 +41,42 @@ public class FormatterConfigAdapter {
     })
     public Boolean noSpaceAroundEquals = false;
 
-    public FormatterConfig toConfig() {
-        // ✅ LÓGICA ESPECIAL DESCUBIERTA:
-        boolean finalSpaceAfterColon = (spaceAfterColon != null) ? spaceAfterColon : false;
-        boolean finalSpaceAroundAssignment = (spaceAroundAssignment != null) ? spaceAroundAssignment : true;
+    @SerializedName(value = "mandatoryLineBreakAfterStatement", alternate = {
+            "mandatory-line-break-after-statement", "mandatory_line_break_after_statement"
+    })
+    public Boolean mandatoryLineBreakAfterStatement = false;
 
-        // enforce-spacing-around-equals activa TANTO espacios después de : COMO alrededor de =
+    public FormatterConfig toConfig() {
+        // 🔍 Lógica especial para manejar los diferentes configs de espaciado
+        boolean finalSpaceAfterColon = false;
+        boolean finalSpaceAroundAssignment = true;
+
+        // Prioridad de configs de espaciado
+        if (spaceAfterColon != null) {
+            finalSpaceAfterColon = spaceAfterColon;
+        }
+
+        if (spaceAroundAssignment != null) {
+            finalSpaceAroundAssignment = spaceAroundAssignment;
+        }
+
+        // enforce-spacing-around-equals activa espacios después de : y alrededor de =
         if (spaceAroundEquals != null && spaceAroundEquals) {
             finalSpaceAfterColon = true;
             finalSpaceAroundAssignment = true;
         }
 
-        // enforce-no-spacing-around-equals MANTIENE espacios después de : pero quita alrededor de =
+        // enforce-no-spacing-around-equals quita espacios alrededor de =
         if (noSpaceAroundEquals != null && noSpaceAroundEquals) {
-            finalSpaceAfterColon = true;  // ¡MANTIENE el espacio después de :!
+            finalSpaceAfterColon = true;  // Mantiene espacio después de :
             finalSpaceAroundAssignment = false;
+        }
+
+        // 🌟 NUEVO: Configuración especial para mandatory-line-break-after-statement
+        // Cuando está activo, preservamos exactamente los espacios originales
+        if (mandatoryLineBreakAfterStatement != null && mandatoryLineBreakAfterStatement) {
+            // En este caso, los espacios se preservarán en el FormatterAdapter
+            // No modificamos la configuración aquí
         }
 
         return new FormatterConfig(

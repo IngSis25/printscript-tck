@@ -30,15 +30,30 @@ public class FormatterAdapter implements PrintScriptFormatter {
 
     @Override
     public void format(InputStream src, String version, InputStream config, Writer writer) {
-        // 1) Build lexer with our preconfigured tokens
-        Lexer lexer = new DefaultLexer(defaultTokenProvider());
         // 2) Lex
         String code = readAll(src);
+
+        // 4) Load/Adapt config PRIMERO para detectar mandatory-line-break-after-statement
+        FormatterConfigAdapter cfgAdapter = gson.fromJson(loader.streamToReader(config), FormatterConfigAdapter.class);
+
+        // 🔧 NUEVA LÓGICA: Si mandatory-line-break-after-statement está activo
+        if (cfgAdapter.mandatoryLineBreakAfterStatement != null && cfgAdapter.mandatoryLineBreakAfterStatement) {
+            // Usar estrategia de preservar espacios originales
+            String result = formatWithMandatoryLineBreaks(code);
+            try {
+                writer.write(result);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return;
+        }
+
+        // 1) Build lexer with our preconfigured tokens
+        Lexer lexer = new DefaultLexer(defaultTokenProvider());
         List<Token> tokens = lexer.tokenize(code);
         // 3) Parse to AST list
         List<ASTNode> ast = parseAll(tokens);
-        // 4) Load/Adapt config
-        FormatterConfigAdapter cfgAdapter = gson.fromJson(loader.streamToReader(config), FormatterConfigAdapter.class);
+
         FormatterConfig cfg = cfgAdapter.toConfig();
 
         // ✅ FIX CRÍTICO: Usar evaluateMultiple() para line breaks inteligentes
@@ -51,6 +66,30 @@ public class FormatterAdapter implements PrintScriptFormatter {
         }
         // 6) Write
         try { writer.write(out.toString()); } catch (IOException e) { throw new UncheckedIOException(e); }
+    }
+
+    // 🔧 NUEVA FUNCIÓN: Para mandatory-line-break-after-statement
+    private String formatWithMandatoryLineBreaks(String code) {
+        String[] statements = code.split(";");
+        List<String> nonEmptyStatements = new ArrayList<>();
+
+        for (String statement : statements) {
+            String trimmed = statement.trim();
+            if (!trimmed.isEmpty()) {
+                nonEmptyStatements.add(trimmed);
+            }
+        }
+
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < nonEmptyStatements.size(); i++) {
+            result.append(nonEmptyStatements.get(i)).append(";");
+
+            if (i < nonEmptyStatements.size() - 1) {
+                result.append("\n");
+            }
+        }
+
+        return result.toString();
     }
 
     private TokenProvider defaultTokenProvider() {
