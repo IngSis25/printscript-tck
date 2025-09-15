@@ -30,13 +30,13 @@ test {
 dependencies {
     testImplementation 'junit:junit:4.13.1'
     implementation 'com.google.code.gson:gson:2.8.9'
-    implementation 'io.printscript:lexer:0.1.14-SNAPSHOT'
-    implementation 'io.printscript:parser:0.1.14-SNAPSHOT'
-    implementation 'io.printscript:interpreter:0.1.14-SNAPSHOT'
-    implementation 'io.printscript:analyzer:0.1.14-SNAPSHOT'
-    implementation 'io.printscript:cli:0.1.14-SNAPSHOT'
-    implementation 'io.printscript:formatter:0.1.14-SNAPSHOT'
-    implementation 'io.printscript:common:0.1.14-SNAPSHOT'
+    implementation 'io.printscript:lexer:0.1.15-SNAPSHOT'
+    implementation 'io.printscript:parser:0.1.15-SNAPSHOT'
+    implementation 'io.printscript:interpreter:0.1.15-SNAPSHOT'
+    implementation 'io.printscript:analyzer:0.1.15-SNAPSHOT'
+    implementation 'io.printscript:cli:0.1.15-SNAPSHOT'
+    implementation 'io.printscript:formatter:0.1.15-SNAPSHOT'
+    implementation 'io.printscript:common:0.1.15-SNAPSHOT'
     implementation "org.jetbrains.kotlin:kotlin-stdlib"
 }
 

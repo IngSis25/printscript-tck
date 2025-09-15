@@ -1,5 +1,6 @@
 package implementation;
 
+import builders.AssignmentBuilder;
 import com.google.gson.Gson;
 import kotlin.text.Regex;
 import main.kotlin.lexer.*;
@@ -9,6 +10,7 @@ import org.example.TokenType;
 import org.example.ast.ASTNode;
 import org.example.formatter.FormatterVisitor;
 import org.example.formatter.config.FormatterConfig;
+import parser.rules.AssignmentRule;
 import parser.rules.ParserRule;
 
 import rules.*;
@@ -87,11 +89,12 @@ public class FormatterAdapter implements PrintScriptFormatter {
   }
 
   private List<ASTNode> parseAll(List<Token> tokens) {
-    List<ParserRule> rules = Arrays.asList(
-        new PrintlnRule(new PrintBuilder()),
-        new VariableDeclarationRule(new VariableDeclarationBuilder()),
-        new ExpressionRule(new ExpressionBuilder())
-    );
+      List<ParserRule> rules = Arrays.asList(
+              new PrintlnRule(new PrintBuilder()),
+              new VariableDeclarationRule(new VariableDeclarationBuilder()),
+              new AssignmentRule(new AssignmentBuilder()),  // ← AGREGAR ESTA LÍNEA
+              new ExpressionRule(new ExpressionBuilder())
+      );
     RuleMatcher matcher = new RuleMatcher(rules);
     List<ASTNode> ast = new ArrayList<>();
     int pos = 0;
