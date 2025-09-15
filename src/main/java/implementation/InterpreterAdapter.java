@@ -1,5 +1,6 @@
 package implementation;
 
+import builders.AssignmentBuilder;
 import interpreter.ErrorHandler;
 import interpreter.InputProvider;
 import interpreter.PrintEmitter;
@@ -9,6 +10,7 @@ import main.kotlin.lexer.Lexer;
 import main.kotlin.lexer.Token;
 import main.kotlin.lexer.TokenProvider;
 import main.kotlin.lexer.TokenRule;
+import parser.rules.AssignmentRule;
 import rules.*;
 import types.*;
 import types.PrintlnType;
@@ -123,11 +125,12 @@ public class InterpreterAdapter implements PrintScriptInterpreter {
   }
 
   private List<ASTNode> parseAll(List<Token> tokens) {
-    List<ParserRule> rules = Arrays.asList(
-        new PrintlnRule(new PrintBuilder()),
-        new VariableDeclarationRule(new VariableDeclarationBuilder()),
-        new ExpressionRule(new ExpressionBuilder())
-    );
+      List<ParserRule> rules = Arrays.asList(
+              new PrintlnRule(new PrintBuilder()),
+              new VariableDeclarationRule(new VariableDeclarationBuilder()),
+              new AssignmentRule(new AssignmentBuilder()),  // ← AGREGAR ESTA LÍNEA
+              new ExpressionRule(new ExpressionBuilder())
+      );
     RuleMatcher matcher = new RuleMatcher(rules);
     List<ASTNode> ast = new ArrayList<>();
     int pos = 0;
