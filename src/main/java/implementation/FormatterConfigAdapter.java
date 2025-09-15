@@ -14,9 +14,9 @@ public class FormatterConfigAdapter {
     @SerializedName(value = "spaceAroundEquals", alternate = {
             "space_around_equals", "space-around-equals",
             "enforce-spacing-surrounding-equals", "enforce_spacing_surrounding_equals",
-            "enforce-spacing-around-equals", "enforce_spacing_around_equals"  // ✅ CASO 1
+            "enforce-spacing-around-equals", "enforce_spacing_around_equals"
     })
-    public Boolean spaceAroundEquals = true;
+    public Boolean spaceAroundEquals = null;  // ✅ CAMBIO: true → null
 
     @SerializedName(value = "spaceBeforeColon", alternate = {
             "space_before_colon", "space-before-colon",
