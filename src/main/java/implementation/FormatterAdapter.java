@@ -1,10 +1,8 @@
 package implementation;
 
 import com.google.gson.Gson;
-import main.kotlin.lexer.DefaultLexer;
-import main.kotlin.lexer.Lexer;
-import main.kotlin.lexer.Token;
-import main.kotlin.lexer.TokenProvider;
+import kotlin.text.Regex;
+import main.kotlin.lexer.*;
 import org.example.LiteralNumber;
 import org.example.LiteralString;
 import org.example.TokenType;
@@ -12,11 +10,8 @@ import org.example.ast.ASTNode;
 import org.example.formatter.FormatterVisitor;
 import org.example.formatter.config.FormatterConfig;
 import parser.rules.ParserRule;
-import parser.rules.VariableDeclarationRule;
-import rules.ExpressionRule;
-import rules.PrintlnRule;
-import rules.MatchedRule;
-import rules.RuleMatcher;
+
+import rules.*;
 import builders.ExpressionBuilder;
 import builders.PrintBuilder;
 import builders.VariableDeclarationBuilder;
@@ -43,43 +38,52 @@ public class FormatterAdapter implements PrintScriptFormatter {
     // 4) Load/Adapt config
     FormatterConfigAdapter cfgAdapter = gson.fromJson(loader.streamToReader(config), FormatterConfigAdapter.class);
     FormatterConfig cfg = cfgAdapter.toConfig();
-    // 5) Format each node
     StringBuilder out = new StringBuilder();
     for (ASTNode node : ast) {
       new FormatterVisitor(cfg, out).evaluate(node);
+    }
+
+    if (out.length() > 0 && out.charAt(out.length() - 1) == '\n') {
+      out.deleteCharAt(out.length() - 1);
     }
     // 6) Write
     try { writer.write(out.toString()); } catch (IOException e) { throw new UncheckedIOException(e); }
   }
 
   private TokenProvider defaultTokenProvider() {
-    Map<String, TokenType> map = new LinkedHashMap<>();
+    List<TokenRule> rules = new ArrayList<>();
 
-    // Palabras clave (deben ir antes que los identificadores)
-    map.put("\\bnumber\\b", types.NumberType.INSTANCE);
-    map.put("\\bstring\\b", types.StringType.INSTANCE);
-    map.put("\\bconst\\b|\\blet\\b|\\bvar\\b", types.ModifierType.INSTANCE);
+    // --- IGNORADOS (si tu formatter no distingue newline de space, podés dejar solo \\G\\s+) ---
+    rules.add(new TokenRule(new Regex("\\G[ \\t]+"), types.WhitespaceType.INSTANCE, true));          // espacios/tabs
+    rules.add(new TokenRule(new Regex("\\G(?:\\r?\\n)+"), types.WhitespaceType.INSTANCE, true));     // newlines
+    // rules.add(new TokenRule(new Regex("\\G/\\*[\\s\\S]*?\\*/"), types.CommentType.INSTANCE, true)); // comentarios bloque (opcional)
 
-    // Asignación y operadores (primero los multi-char)
-    map.put("==|!=|<=|>=", types.OperatorType.INSTANCE);
-    map.put("=", types.AssignmentType.INSTANCE);
-    map.put("[+\\-*/<>]", types.OperatorType.INSTANCE);
+    // --- KEYWORDS (antes que Identifier) ---
+    rules.add(new TokenRule(new Regex("\\G\\bprintln\\b"), types.PrintlnType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\bnumber\\b"), types.NumberType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\bstring\\b"), types.StringType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\b(?:const|let|var)\\b"), types.ModifierType.INSTANCE, false));
 
-    // Puntuación necesaria para el lenguaje 1.0
-    map.put(":", types.PunctuationType.INSTANCE);
-    map.put(";", types.PunctuationType.INSTANCE);
-    map.put("\\(", types.PunctuationType.INSTANCE);
-    map.put("\\)", types.PunctuationType.INSTANCE);
+    // --- PUNTUACIÓN ---
+    rules.add(new TokenRule(new Regex("\\G:"), types.PunctuationType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G;"), types.PunctuationType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\("), types.PunctuationType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\)"), types.PunctuationType.INSTANCE, false));
 
-    // Literales
-    map.put("\"([^\"\\\\]|\\\\.)*\"", org.example.LiteralString.INSTANCE); // comillas dobles
-    map.put("'([^'\\\\]|\\\\.)*'",   org.example.LiteralString.INSTANCE);  // comillas simples
-    map.put("[0-9]+(?:\\.[0-9]+)?",  org.example.LiteralNumber.INSTANCE);
+    // --- OPERADORES (multi-char antes que single) ---
+    rules.add(new TokenRule(new Regex("\\G(?:==|!=|<=|>=)"), types.OperatorType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G="), types.AssignmentType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G[+\\-*/<>]"), types.OperatorType.INSTANCE, false));
 
-    // Identificadores (debe ir al final)
-    map.put("[A-Za-z_][A-Za-z_0-9]*", types.IdentifierType.INSTANCE);
+    // --- LITERALES ---
+    rules.add(new TokenRule(new Regex("\\G\"([^\"\\\\]|\\\\.)*\""), LiteralString.INSTANCE, false)); // dobles
+    rules.add(new TokenRule(new Regex("\\G'([^'\\\\]|\\\\.)*'"),  LiteralString.INSTANCE, false));  // simples
+    rules.add(new TokenRule(new Regex("\\G[0-9]+(?:\\.[0-9]+)?"), LiteralNumber.INSTANCE, false));
 
-    return TokenProvider.Companion.fromMap(map);
+    // --- IDENTIFIER (después de keywords) ---
+    rules.add(new TokenRule(new Regex("\\G[A-Za-z_][A-Za-z_0-9]*"), types.IdentifierType.INSTANCE, false));
+
+    return TokenProvider.Companion.fromRules(rules);
   }
 
   private List<ASTNode> parseAll(List<Token> tokens) {

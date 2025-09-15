@@ -3,21 +3,18 @@ package implementation;
 import com.google.gson.Gson;
 import interpreter.ErrorHandler;
 import interpreter.PrintScriptLinter;
+import kotlin.text.Regex;
 import main.kotlin.analyzer.Analyzer;
 import main.kotlin.analyzer.AnalysisResult;
 import main.kotlin.analyzer.DefaultAnalyzer;
-import main.kotlin.lexer.DefaultLexer;
-import main.kotlin.lexer.Lexer;
-import main.kotlin.lexer.Token;
-import main.kotlin.lexer.TokenProvider;
+import main.kotlin.lexer.*;
+import org.example.LiteralNumber;
+import org.example.LiteralString;
 import org.example.TokenType;
 import org.example.ast.ASTNode;
 import parser.rules.ParserRule;
-import parser.rules.VariableDeclarationRule;
-import rules.ExpressionRule;
-import rules.PrintlnRule;
-import rules.MatchedRule;
-import rules.RuleMatcher;
+
+import rules.*;
 import builders.ExpressionBuilder;
 import builders.PrintBuilder;
 import builders.VariableDeclarationBuilder;
@@ -52,20 +49,39 @@ public class LinterAdapter implements PrintScriptLinter {
   }
 
   private TokenProvider defaultTokenProvider() {
-    Map<String, TokenType> map = new LinkedHashMap<>();
-    map.put("\\bnumber\\b", types.NumberType.INSTANCE);
-    map.put("\\bstring\\b", types.StringType.INSTANCE);
-    map.put("\\bconst\\b|\\blet\\b|\\bvar\\b", types.ModifierType.INSTANCE);
-    map.put("=", types.AssignmentType.INSTANCE);
-    map.put("==|!=|<=|>=", types.OperatorType.INSTANCE);
-    map.put("[+\\-*/<>]", types.OperatorType.INSTANCE);
-    map.put("\"([^\"\\\\]|\\\\.)*\"", org.example.LiteralString.INSTANCE);
-    map.put("[0-9]+(?:\\.[0-9]+)?", org.example.LiteralNumber.INSTANCE);
-    map.put("[A-Za-z_][A-Za-z_0-9]*", types.IdentifierType.INSTANCE);
-    map.put(";", types.PunctuationType.INSTANCE);
-    map.put("\\(", types.PunctuationType.INSTANCE);
-    map.put("\\)", types.PunctuationType.INSTANCE);
-    return TokenProvider.Companion.fromMap(map);
+    List<TokenRule> rules = new ArrayList<>();
+
+    // --- IGNORADOS (si tu formatter no distingue newline de space, podés dejar solo \\G\\s+) ---
+    rules.add(new TokenRule(new Regex("\\G[ \\t]+"), types.WhitespaceType.INSTANCE, true));          // espacios/tabs
+    rules.add(new TokenRule(new Regex("\\G(?:\\r?\\n)+"), types.WhitespaceType.INSTANCE, true));     // newlines
+    // rules.add(new TokenRule(new Regex("\\G/\\*[\\s\\S]*?\\*/"), types.CommentType.INSTANCE, true)); // comentarios bloque (opcional)
+
+    // --- KEYWORDS (antes que Identifier) ---
+    rules.add(new TokenRule(new Regex("\\G\\bprintln\\b"), types.PrintlnType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\bnumber\\b"), types.NumberType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\bstring\\b"), types.StringType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\b(?:const|let|var)\\b"), types.ModifierType.INSTANCE, false));
+
+    // --- PUNTUACIÓN ---
+    rules.add(new TokenRule(new Regex("\\G:"), types.PunctuationType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G;"), types.PunctuationType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\("), types.PunctuationType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G\\)"), types.PunctuationType.INSTANCE, false));
+
+    // --- OPERADORES (multi-char antes que single) ---
+    rules.add(new TokenRule(new Regex("\\G(?:==|!=|<=|>=)"), types.OperatorType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G="), types.AssignmentType.INSTANCE, false));
+    rules.add(new TokenRule(new Regex("\\G[+\\-*/<>]"), types.OperatorType.INSTANCE, false));
+
+    // --- LITERALES ---
+    rules.add(new TokenRule(new Regex("\\G\"([^\"\\\\]|\\\\.)*\""), LiteralString.INSTANCE, false)); // dobles
+    rules.add(new TokenRule(new Regex("\\G'([^'\\\\]|\\\\.)*'"),  LiteralString.INSTANCE, false));  // simples
+    rules.add(new TokenRule(new Regex("\\G[0-9]+(?:\\.[0-9]+)?"), LiteralNumber.INSTANCE, false));
+
+    // --- IDENTIFIER (después de keywords) ---
+    rules.add(new TokenRule(new Regex("\\G[A-Za-z_][A-Za-z_0-9]*"), types.IdentifierType.INSTANCE, false));
+
+    return TokenProvider.Companion.fromRules(rules);
   }
 
   private List<ASTNode> parseAll(List<Token> tokens) {
