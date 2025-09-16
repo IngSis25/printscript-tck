@@ -128,7 +128,7 @@ public class InterpreterAdapter implements PrintScriptInterpreter {
       List<ParserRule> rules = Arrays.asList(
               new PrintlnRule(new PrintBuilder()),
               new VariableDeclarationRule(new VariableDeclarationBuilder()),
-              new AssignmentRule(new AssignmentBuilder()),  // ← AGREGAR ESTA LÍNEA
+              new AssignmentRule(new AssignmentBuilder()),
               new ExpressionRule(new ExpressionBuilder())
       );
     RuleMatcher matcher = new RuleMatcher(rules);

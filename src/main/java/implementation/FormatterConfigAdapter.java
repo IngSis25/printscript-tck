@@ -4,6 +4,16 @@ import com.google.gson.annotations.SerializedName;
 import org.example.formatter.config.FormatterConfig;
 
 public class FormatterConfigAdapter {
+    @SerializedName(value = "indentSize", alternate = {
+        "indent_size", "indent-size", "indentation", "number-of-indentation-spaces"
+    })
+    public Integer indentSize = 2;
+
+    @SerializedName(value = "ifBraceSameLine", alternate = {
+        "if_brace_same_line", "if-brace-same-line", "brace_same_line", "brace-in-same-line"
+    })
+    public Boolean ifBraceSameLine = true;
+
     @SerializedName(value = "lineBreaksBeforePrints", alternate = {
             "line_breaks_before_prints", "line-breaks-before-prints",
             "lineBreaksAfterPrints", "line_breaks_after_prints", "line-breaks-after-println"
@@ -96,7 +106,9 @@ public class FormatterConfigAdapter {
                 finalSpaceBeforeColon,
                 finalSpaceAfterColon,
                 finalSpaceAroundAssignment,
-                finalSpaceInsideParentheses  // ✅ Nuevo parámetro
+                finalSpaceInsideParentheses,
+                    (indentSize != null) ? indentSize : 2,
+            (ifBraceSameLine != null) ? ifBraceSameLine : true
         );
     }
 }

@@ -1,6 +1,6 @@
 package implementation;
 
-import builders.AssignmentBuilder;
+import builders.*;
 import com.google.gson.Gson;
 import kotlin.text.Regex;
 import main.kotlin.lexer.*;
@@ -14,9 +14,6 @@ import parser.rules.AssignmentRule;
 import parser.rules.ParserRule;
 
 import rules.*;
-import builders.ExpressionBuilder;
-import builders.PrintBuilder;
-import builders.VariableDeclarationBuilder;
 import main.kotlin.parser.ParseResult;
 import interpreter.PrintScriptFormatter;
 
@@ -36,7 +33,6 @@ public class FormatterAdapter implements PrintScriptFormatter {
         // 4) Load/Adapt config PRIMERO para detectar mandatory-line-break-after-statement
         FormatterConfigAdapter cfgAdapter = gson.fromJson(loader.streamToReader(config), FormatterConfigAdapter.class);
 
-        // 🔧 NUEVA LÓGICA: Si mandatory-line-break-after-statement está activo
         if (cfgAdapter.mandatoryLineBreakAfterStatement != null && cfgAdapter.mandatoryLineBreakAfterStatement) {
             // Usar estrategia de preservar espacios originales
             String result = formatWithMandatoryLineBreaks(code);
@@ -56,19 +52,16 @@ public class FormatterAdapter implements PrintScriptFormatter {
 
         FormatterConfig cfg = cfgAdapter.toConfig();
 
-        // ✅ FIX CRÍTICO: Usar evaluateMultiple() para line breaks inteligentes
         StringBuilder out = new StringBuilder();
         FormatterVisitor visitor = new FormatterVisitor(cfg, out);
-        visitor.evaluateMultiple(ast);  // ← CAMBIO PRINCIPAL: Todos los nodos juntos
+        visitor.evaluateMultiple(ast);
 
         if (out.length() > 0 && out.charAt(out.length() - 1) == '\n') {
             out.deleteCharAt(out.length() - 1);
         }
-        // 6) Write
         try { writer.write(out.toString()); } catch (IOException e) { throw new UncheckedIOException(e); }
     }
 
-    // 🔧 NUEVA FUNCIÓN: Para mandatory-line-break-after-statement
     private String formatWithMandatoryLineBreaks(String code) {
         String[] statements = code.split(";");
         List<String> nonEmptyStatements = new ArrayList<>();
@@ -115,6 +108,7 @@ public class FormatterAdapter implements PrintScriptFormatter {
         rules.add(new TokenRule(new Regex("\\G(?:==|!=|<=|>=)"), types.OperatorType.INSTANCE, false));
         rules.add(new TokenRule(new Regex("\\G="), types.AssignmentType.INSTANCE, false));
         rules.add(new TokenRule(new Regex("\\G[+\\-*/<>]"), types.OperatorType.INSTANCE, false));
+
 
         // --- LITERALES ---
         rules.add(new TokenRule(new Regex("\\G\"([^\"\\\\]|\\\\.)*\""), LiteralString.INSTANCE, false)); // dobles
