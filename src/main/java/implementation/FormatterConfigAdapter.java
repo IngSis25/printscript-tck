@@ -3,7 +3,6 @@ package implementation;
 import com.google.gson.annotations.SerializedName;
 import org.example.formatter.config.FormatterConfig;
 
-/** Accepts multiple naming styles from the TCK config and adapts to our FormatterConfig. */
 public class FormatterConfigAdapter {
     @SerializedName(value = "lineBreaksBeforePrints", alternate = {
             "line_breaks_before_prints", "line-breaks-before-prints",
@@ -46,45 +45,58 @@ public class FormatterConfigAdapter {
     })
     public Boolean mandatoryLineBreakAfterStatement = false;
 
+    @SerializedName(value = "mandatorySingleSpaceSeparation", alternate = {
+            "mandatory-single-space-separation", "mandatory_single_space_separation"
+    })
+    public Boolean mandatorySingleSpaceSeparation = false;
+
+    @SerializedName(value = "mandatorySpaceSurroundingOperations", alternate = {
+            "mandatory-space-surrounding-operations", "mandatory_space_surrounding_operations"
+    })
+    public Boolean mandatorySpaceSurroundingOperations = false;
+
+    @SerializedName(value = "spaceInsideParentheses", alternate = {
+            "space_inside_parentheses", "space-inside-parentheses"
+    })
+    public Boolean spaceInsideParentheses = false;
+
     public FormatterConfig toConfig() {
-        // 🔍 Lógica especial para manejar los diferentes configs de espaciado
-        boolean finalSpaceAfterColon = false;
-        boolean finalSpaceAroundAssignment = true;
+        boolean finalSpaceBeforeColon = (spaceBeforeColon != null) ? spaceBeforeColon : false;
+        boolean finalSpaceAfterColon  = (spaceAfterColon  != null) ? spaceAfterColon  : false;
+        boolean finalSpaceAroundAssignment = (spaceAroundAssignment != null) ? spaceAroundAssignment : true;
+        boolean finalSpaceInsideParentheses = (spaceInsideParentheses != null) ? spaceInsideParentheses : false;
 
-        // Prioridad de configs de espaciado
-        if (spaceAfterColon != null) {
-            finalSpaceAfterColon = spaceAfterColon;
+        // MANDATORY SINGLE SPACE SEPARATION - activa espacios en : y ()
+        if (mandatorySingleSpaceSeparation != null && mandatorySingleSpaceSeparation) {
+            finalSpaceBeforeColon = true;
+            finalSpaceAfterColon = true;
+            finalSpaceInsideParentheses = true;  // ✅ También activa espacios en paréntesis
         }
 
-        if (spaceAroundAssignment != null) {
-            finalSpaceAroundAssignment = spaceAroundAssignment;
+        // MANDATORY SPACE SURROUNDING OPERATIONS - activa espacio después de :
+        if (mandatorySpaceSurroundingOperations != null && mandatorySpaceSurroundingOperations) {
+            finalSpaceAfterColon = true;
         }
 
-        // enforce-spacing-around-equals activa espacios después de : y alrededor de =
+        // Si piden espacios alrededor de "="
         if (spaceAroundEquals != null && spaceAroundEquals) {
             finalSpaceAfterColon = true;
             finalSpaceAroundAssignment = true;
         }
 
-        // enforce-no-spacing-around-equals quita espacios alrededor de =
+        // Si piden NO espacios alrededor de "="
         if (noSpaceAroundEquals != null && noSpaceAroundEquals) {
-            finalSpaceAfterColon = true;  // Mantiene espacio después de :
+            finalSpaceAfterColon = true;
             finalSpaceAroundAssignment = false;
         }
 
-        // 🌟 NUEVO: Configuración especial para mandatory-line-break-after-statement
-        // Cuando está activo, preservamos exactamente los espacios originales
-        if (mandatoryLineBreakAfterStatement != null && mandatoryLineBreakAfterStatement) {
-            // En este caso, los espacios se preservarán en el FormatterAdapter
-            // No modificamos la configuración aquí
-        }
-
         return new FormatterConfig(
-                lineBreaksBeforePrints != null ? lineBreaksBeforePrints : 0,
-                spaceAroundEquals != null ? spaceAroundEquals : true,
-                spaceBeforeColon != null ? spaceBeforeColon : false,
+                (lineBreaksBeforePrints != null) ? lineBreaksBeforePrints : 0,
+                (spaceAroundEquals != null) ? spaceAroundEquals : true,
+                finalSpaceBeforeColon,
                 finalSpaceAfterColon,
-                finalSpaceAroundAssignment
+                finalSpaceAroundAssignment,
+                finalSpaceInsideParentheses  // ✅ Nuevo parámetro
         );
     }
 }
