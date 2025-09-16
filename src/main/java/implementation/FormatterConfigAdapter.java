@@ -5,12 +5,12 @@ import org.example.formatter.config.FormatterConfig;
 
 public class FormatterConfigAdapter {
     @SerializedName(value = "indentSize", alternate = {
-        "indent_size", "indent-size", "indentation", "number-of-indentation-spaces"
+            "indent_size", "indent-size", "indentation", "number-of-indentation-spaces"
     })
     public Integer indentSize = 2;
 
     @SerializedName(value = "ifBraceSameLine", alternate = {
-        "if_brace_same_line", "if-brace-same-line", "brace_same_line", "brace-in-same-line"
+            "if_brace_same_line", "if-brace-same-line", "brace_same_line", "brace-in-same-line"
     })
     public Boolean ifBraceSameLine = true;
 
@@ -107,8 +107,8 @@ public class FormatterConfigAdapter {
                 finalSpaceAfterColon,
                 finalSpaceAroundAssignment,
                 finalSpaceInsideParentheses,
-                    (indentSize != null) ? indentSize : 2,
-            (ifBraceSameLine != null) ? ifBraceSameLine : true
+                (indentSize != null) ? indentSize : 2,
+                (ifBraceSameLine != null) ? ifBraceSameLine : true
         );
     }
 }
