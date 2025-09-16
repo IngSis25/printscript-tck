@@ -11,11 +11,14 @@ import org.example.ast.ASTNode;
 import org.example.formatter.FormatterVisitor;
 import org.example.formatter.config.FormatterConfig;
 import parser.rules.AssignmentRule;
+import parser.rules.BooleanExpressionRule;
 import parser.rules.ParserRule;
 
 import rules.*;
 import main.kotlin.parser.ParseResult;
 import interpreter.PrintScriptFormatter;
+import rules.booleanExpressions.BooleanIdentifierRule;
+import types.LiteralBoolean;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -88,45 +91,57 @@ public class FormatterAdapter implements PrintScriptFormatter {
     private TokenProvider defaultTokenProvider() {
         List<TokenRule> rules = new ArrayList<>();
 
-        // --- IGNORADOS (espacios y newlines) ---
-        rules.add(new TokenRule(new Regex("\\G[ \\t]+"), types.WhitespaceType.INSTANCE, true));          // espacios/tabs
-        rules.add(new TokenRule(new Regex("\\G(?:\\r?\\n)+"), types.WhitespaceType.INSTANCE, true));     // newlines
+        // --- IGNORADOS (espacios, newlines, comentarios) ---
+        rules.add(new TokenRule(new Regex("\\G[ \\t]+"), types.WhitespaceType.INSTANCE, true));
+        rules.add(new TokenRule(new Regex("\\G(?:\\r?\\n)+"), types.WhitespaceType.INSTANCE, true));
+        rules.add(new TokenRule(new Regex("\\G//.*(?:\\r?\\n|$)"), types.WhitespaceType.INSTANCE, true));
 
         // --- KEYWORDS (antes que Identifier) ---
+        rules.add(new TokenRule(new Regex("\\G\\bif\\b"), types.IfType.INSTANCE, false));
+        rules.add(new TokenRule(new Regex("\\G\\belse\\b"), types.ElseType.INSTANCE, false));
         rules.add(new TokenRule(new Regex("\\G\\bprintln\\b"), types.PrintlnType.INSTANCE, false));
+        rules.add(new TokenRule(new Regex("\\G\\breadInput\\b"), types.ReadInputType.INSTANCE, false)); // si usás 1.1
+        rules.add(new TokenRule(new Regex("\\G\\breadEnv\\b"), types.ReadEnvType.INSTANCE, false));     // si usás 1.1
         rules.add(new TokenRule(new Regex("\\G\\bnumber\\b"), types.NumberType.INSTANCE, false));
         rules.add(new TokenRule(new Regex("\\G\\bstring\\b"), types.StringType.INSTANCE, false));
+        // Soportar ambos estilos para boolean:
+        rules.add(new TokenRule(new Regex("\\G\\bBoolean\\b|\\G\\bboolean\\b"), types.BooleanType.INSTANCE, false));
         rules.add(new TokenRule(new Regex("\\G\\b(?:const|let|var)\\b"), types.ModifierType.INSTANCE, false));
 
-        // --- PUNTUACIÓN ---
-        rules.add(new TokenRule(new Regex("\\G:"), types.PunctuationType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G;"), types.PunctuationType.INSTANCE, false));
+        // --- PUNTUACIÓN (incluye llaves y paréntesis) ---
+        rules.add(new TokenRule(new Regex("\\G\\{"), types.PunctuationType.INSTANCE, false));
+        rules.add(new TokenRule(new Regex("\\G\\}"), types.PunctuationType.INSTANCE, false));
         rules.add(new TokenRule(new Regex("\\G\\("), types.PunctuationType.INSTANCE, false));
         rules.add(new TokenRule(new Regex("\\G\\)"), types.PunctuationType.INSTANCE, false));
+        rules.add(new TokenRule(new Regex("\\G:"), types.PunctuationType.INSTANCE, false));
+        rules.add(new TokenRule(new Regex("\\G;"), types.PunctuationType.INSTANCE, false));
 
         // --- OPERADORES (multi-char antes que single) ---
         rules.add(new TokenRule(new Regex("\\G(?:==|!=|<=|>=)"), types.OperatorType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G="), types.AssignmentType.INSTANCE, false));
         rules.add(new TokenRule(new Regex("\\G[+\\-*/<>]"), types.OperatorType.INSTANCE, false));
-
+        rules.add(new TokenRule(new Regex("\\G="), types.AssignmentType.INSTANCE, false));
 
         // --- LITERALES ---
         rules.add(new TokenRule(new Regex("\\G\"([^\"\\\\]|\\\\.)*\""), LiteralString.INSTANCE, false)); // dobles
         rules.add(new TokenRule(new Regex("\\G'([^'\\\\]|\\\\.)*'"),  LiteralString.INSTANCE, false));  // simples
         rules.add(new TokenRule(new Regex("\\G[0-9]+(?:\\.[0-9]+)?"), LiteralNumber.INSTANCE, false));
+        rules.add(new TokenRule(new Regex("\\G\\btrue\\b|\\G\\bfalse\\b"), types.LiteralBoolean.INSTANCE, false));
 
-        // --- IDENTIFIER (después de keywords) ---
+        // --- IDENTIFIER (después de keywords/literales) ---
         rules.add(new TokenRule(new Regex("\\G[A-Za-z_][A-Za-z_0-9]*"), types.IdentifierType.INSTANCE, false));
 
         return TokenProvider.Companion.fromRules(rules);
     }
+
 
     private List<ASTNode> parseAll(List<Token> tokens) {
         List<ParserRule> rules = Arrays.asList(
                 new PrintlnRule(new PrintBuilder()),
                 new VariableDeclarationRule(new VariableDeclarationBuilder()),
                 new AssignmentRule(new AssignmentBuilder()),
-                new ExpressionRule(new ExpressionBuilder())
+                new ExpressionRule(new ExpressionBuilder()),
+                new BooleanIdentifierRule(new BooleanIdentifierBuilder()),
+                new ConstRule(new ConstBuilder())
         );
         RuleMatcher matcher = new RuleMatcher(rules);
         List<ASTNode> ast = new ArrayList<>();
