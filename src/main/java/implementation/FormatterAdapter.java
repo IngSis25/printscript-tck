@@ -1,28 +1,26 @@
 package implementation;
 
-import builders.*;
 import com.google.gson.Gson;
-import kotlin.text.Regex;
-import main.kotlin.lexer.*;
-import org.example.LiteralNumber;
-import org.example.LiteralString;
-import org.example.TokenType;
+import interpreter.PrintScriptFormatter;
+import factory.LexerFactory;
+import factory.LexerFactoryV1;
+import factory.LexerFactoryV11;
+import factory.ParserFactory;
+import factory.ParserFactoryV1;
+import factory.ParserFactoryV11;
+import main.kotlin.lexer.Lexer;
+import main.kotlin.lexer.Token;
 import org.example.ast.ASTNode;
 import org.example.formatter.FormatterVisitor;
 import org.example.formatter.config.FormatterConfig;
-import parser.rules.AssignmentRule;
-import parser.rules.BooleanExpressionRule;
-import parser.rules.ParserRule;
 
-import rules.*;
-import main.kotlin.parser.ParseResult;
-import interpreter.PrintScriptFormatter;
-import rules.booleanExpressions.BooleanIdentifierRule;
-import types.LiteralBoolean;
-
-import java.io.*;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.BufferedReader;
+import java.io.Reader;
+import java.io.Writer;
 import java.nio.charset.StandardCharsets;
-import java.util.*;
+import java.util.List;
 
 public class FormatterAdapter implements PrintScriptFormatter {
     private final Loader loader = new Loader();
@@ -30,146 +28,53 @@ public class FormatterAdapter implements PrintScriptFormatter {
 
     @Override
     public void format(InputStream src, String version, InputStream config, Writer writer) {
-        // 2) Lex
-        String code = readAll(src);
+        try {
+            // 1) Source
+            String code = readAll(src);
 
-        // 4) Load/Adapt config PRIMERO para detectar mandatory-line-break-after-statement
-        FormatterConfigAdapter cfgAdapter = gson.fromJson(loader.streamToReader(config), FormatterConfigAdapter.class);
+            // 2) Factories reales (sin reglas pegadas al adapter)
+            LexerFactory lexerFactory = selectLexerFactory(version);
+            ParserFactory parserFactory = selectParserFactory(version);
+            Lexer lexer = lexerFactory.create();
+            var parser = parserFactory.create();
 
-        if (cfgAdapter.mandatoryLineBreakAfterStatement != null && cfgAdapter.mandatoryLineBreakAfterStatement) {
-            // Usar estrategia de preservar espacios originales
-            String result = formatWithMandatoryLineBreaks(code);
-            try {
-                writer.write(result);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            return;
+            // 3) Lex + Parse
+            List<Token> tokens = lexer.tokenize(code);
+            List<ASTNode> ast = parser.parse(tokens);
+
+            // 4) Config del formatter (adapter -> FormatterConfig)
+            Reader cfgReader = loader.streamToReader(config);
+            FormatterConfigAdapter cfgAdapter = gson.fromJson(cfgReader, FormatterConfigAdapter.class);
+            FormatterConfig cfg = cfgAdapter.toConfig();
+
+            // 5) Visita y escritura
+            StringBuilder out = new StringBuilder();
+            new FormatterVisitor(cfg, out).evaluateMultiple(ast);
+            writer.write(out.toString());
+        } catch (Throwable t) {
+            throw new RuntimeException("FormatterAdapter failed: " + t.getMessage(), t);
         }
-
-        // 1) Build lexer with our preconfigured tokens
-        Lexer lexer = new DefaultLexer(defaultTokenProvider());
-        List<Token> tokens = lexer.tokenize(code);
-        // 3) Parse to AST list
-        List<ASTNode> ast = parseAll(tokens);
-
-        FormatterConfig cfg = cfgAdapter.toConfig();
-
-        StringBuilder out = new StringBuilder();
-        FormatterVisitor visitor = new FormatterVisitor(cfg, out);
-        visitor.evaluateMultiple(ast);
-
-        if (out.length() > 0 && out.charAt(out.length() - 1) == '\n') {
-            out.deleteCharAt(out.length() - 1);
-        }
-        try { writer.write(out.toString()); } catch (IOException e) { throw new UncheckedIOException(e); }
     }
 
-    private String formatWithMandatoryLineBreaks(String code) {
-        String[] statements = code.split(";");
-        List<String> nonEmptyStatements = new ArrayList<>();
-
-        for (String statement : statements) {
-            String trimmed = statement.trim();
-            if (!trimmed.isEmpty()) {
-                nonEmptyStatements.add(trimmed);
-            }
-        }
-
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < nonEmptyStatements.size(); i++) {
-            result.append(nonEmptyStatements.get(i)).append(";");
-
-            if (i < nonEmptyStatements.size() - 1) {
-                result.append("\n");
-            }
-        }
-
-        return result.toString();
+    private LexerFactory selectLexerFactory(String version) {
+        if (version != null && version.trim().startsWith("1.1")) return new LexerFactoryV11();
+        return new LexerFactoryV1();
     }
 
-    private TokenProvider defaultTokenProvider() {
-        List<TokenRule> rules = new ArrayList<>();
-
-        // --- IGNORADOS (espacios, newlines, comentarios) ---
-        rules.add(new TokenRule(new Regex("\\G[ \\t]+"), types.WhitespaceType.INSTANCE, true));
-        rules.add(new TokenRule(new Regex("\\G(?:\\r?\\n)+"), types.WhitespaceType.INSTANCE, true));
-        rules.add(new TokenRule(new Regex("\\G//.*(?:\\r?\\n|$)"), types.WhitespaceType.INSTANCE, true));
-
-        // --- KEYWORDS (antes que Identifier) ---
-        rules.add(new TokenRule(new Regex("\\G\\bif\\b"), types.IfType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G\\belse\\b"), types.ElseType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G\\bprintln\\b"), types.PrintlnType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G\\breadInput\\b"), types.ReadInputType.INSTANCE, false)); // si usás 1.1
-        rules.add(new TokenRule(new Regex("\\G\\breadEnv\\b"), types.ReadEnvType.INSTANCE, false));     // si usás 1.1
-        rules.add(new TokenRule(new Regex("\\G\\bnumber\\b"), types.NumberType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G\\bstring\\b"), types.StringType.INSTANCE, false));
-        // Soportar ambos estilos para boolean:
-        rules.add(new TokenRule(new Regex("\\G\\bBoolean\\b|\\G\\bboolean\\b"), types.BooleanType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G\\b(?:const|let|var)\\b"), types.ModifierType.INSTANCE, false));
-
-        // --- PUNTUACIÓN (incluye llaves y paréntesis) ---
-        rules.add(new TokenRule(new Regex("\\G\\{"), types.PunctuationType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G\\}"), types.PunctuationType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G\\("), types.PunctuationType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G\\)"), types.PunctuationType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G:"), types.PunctuationType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G;"), types.PunctuationType.INSTANCE, false));
-
-        // --- OPERADORES (multi-char antes que single) ---
-        rules.add(new TokenRule(new Regex("\\G(?:==|!=|<=|>=)"), types.OperatorType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G[+\\-*/<>]"), types.OperatorType.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G="), types.AssignmentType.INSTANCE, false));
-
-        // --- LITERALES ---
-        rules.add(new TokenRule(new Regex("\\G\"([^\"\\\\]|\\\\.)*\""), LiteralString.INSTANCE, false)); // dobles
-        rules.add(new TokenRule(new Regex("\\G'([^'\\\\]|\\\\.)*'"),  LiteralString.INSTANCE, false));  // simples
-        rules.add(new TokenRule(new Regex("\\G[0-9]+(?:\\.[0-9]+)?"), LiteralNumber.INSTANCE, false));
-        rules.add(new TokenRule(new Regex("\\G\\btrue\\b|\\G\\bfalse\\b"), types.LiteralBoolean.INSTANCE, false));
-
-        // --- IDENTIFIER (después de keywords/literales) ---
-        rules.add(new TokenRule(new Regex("\\G[A-Za-z_][A-Za-z_0-9]*"), types.IdentifierType.INSTANCE, false));
-
-        return TokenProvider.Companion.fromRules(rules);
+    private ParserFactory selectParserFactory(String version) {
+        if (version != null && version.trim().startsWith("1.1")) return new ParserFactoryV11();
+        return new ParserFactoryV1();
     }
 
-
-    private List<ASTNode> parseAll(List<Token> tokens) {
-        List<ParserRule> rules = Arrays.asList(
-                new PrintlnRule(new PrintBuilder()),
-                new VariableDeclarationRule(new VariableDeclarationBuilder()),
-                new AssignmentRule(new AssignmentBuilder()),
-                new ExpressionRule(new ExpressionBuilder()),
-                new BooleanIdentifierRule(new BooleanIdentifierBuilder()),
-                new ConstRule(new ConstBuilder())
-        );
-        RuleMatcher matcher = new RuleMatcher(rules);
-        List<ASTNode> ast = new ArrayList<>();
-        int pos = 0;
-        while (pos < tokens.size()) {
-            ParseResult<MatchedRule> res = matcher.matchNext(tokens, pos);
-            if (res instanceof ParseResult.Success) {
-                ParseResult.Success<MatchedRule> s = (ParseResult.Success<MatchedRule>) res;
-                MatchedRule matched = s.getNode();
-                ASTNode node = matched.getRule().getBuilder().buildNode(matched.getMatchedTokens());
-                ast.add(node);
-                pos = s.getNextPosition();
-            } else if (res instanceof ParseResult.Failure) {
-                ParseResult.Failure f = (ParseResult.Failure) res;
-                throw new IllegalArgumentException("Syntax error at " + f.getPosition() + ": " + f.getMessage());
-            } else {
-                throw new IllegalArgumentException("No rule matched at position " + pos);
-            }
-        }
-        return ast;
-    }
-
-    private static String readAll(InputStream in) {
-        try (BufferedReader r = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
+    private String readAll(InputStream is) {
+        try {
             StringBuilder sb = new StringBuilder();
+            BufferedReader br = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
             String line;
-            while ((line = r.readLine()) != null) { sb.append(line).append('\n'); }
+            while ((line = br.readLine()) != null) sb.append(line).append('\n');
             return sb.toString();
-        } catch (IOException e) { throw new UncheckedIOException(e); }
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
     }
 }

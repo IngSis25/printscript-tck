@@ -37,7 +37,7 @@ public class LinterConfigAdapter {
 
   public AnalyzerConfig toConfig() {
     // ----- identifierFormat -----
-    boolean idEnabled = true; // default
+    boolean idEnabled = false; // default
     IdentifierFormat idFmt = IdentifierFormat.CAMEL_CASE; // default
 
     if (identifierFormatRaw != null && !identifierFormatRaw.isJsonNull()) {
