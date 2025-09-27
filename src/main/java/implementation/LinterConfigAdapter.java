@@ -1,6 +1,5 @@
 package implementation;
 
-import com.google.gson.JsonElement;
 import com.google.gson.annotations.SerializedName;
 import main.kotlin.analyzer.AnalyzerConfig;
 import main.kotlin.analyzer.IdentifierFormat;
@@ -8,24 +7,23 @@ import main.kotlin.analyzer.IdentifierFormatConfig;
 import main.kotlin.analyzer.PrintlnRestrictionConfig;
 
 /**
- * Adapter tolerante: acepta JSON anidado o plano.
- *
- * Soporta:
- *   1) { "identifier_format": "camel case" }
- *   2) { "identifierFormat": { "enabled": true, "format": "SNAKE_CASE" } }
- *   3) { "printlnRestrictions": true }  // habilita con defaults
- *   4) { "printlnRestrictions": { "enabled": false, "allowOnlyIdentifiersAndLiterals": true } }
+ * Adapter de configuración del Linter.
+ * Solo mapea JSON/YAML -> AnalyzerConfig del core (sin lógica del lenguaje).
  */
 public class LinterConfigAdapter {
 
-  // Usamos JsonElement para poder aceptar objeto / string / boolean sin colisiones
-  @SerializedName(value = "identifierFormat", alternate = {"identifier_format"})
-  public JsonElement identifierFormatRaw;
+  // camelCase / snake_case (acepta alias frecuentes)
+  @SerializedName(value = "identifier_format", alternate = {"identifierFormat"})
+  public String identifierFormat;
 
-  @SerializedName(value = "printlnRestrictions", alternate = {"println_restrictions"})
-  public JsonElement printlnRestrictionsRaw;
+  // true => println solo con literal o identificador (no expresiones)
+  @SerializedName(
+      value = "mandatory-variable-or-literal-in-println",
+      alternate = {"printlnRestrictions.allowOnlyIdentifiersAndLiterals"}
+  )
+  public Boolean mandatoryVarOrLiteralInPrintln;
 
-  // Meta
+  // Flags opcionales (dejá solo los que existan en tu AnalyzerConfig)
   @SerializedName(value = "maxErrors", alternate = {"max_errors"})
   public Integer maxErrors;
 
@@ -35,88 +33,28 @@ public class LinterConfigAdapter {
   @SerializedName(value = "strictMode", alternate = {"strict_mode"})
   public Boolean strictMode;
 
-  public AnalyzerConfig toConfig() {
-    // ----- identifierFormat -----
-    boolean idEnabled = false; // default
-    IdentifierFormat idFmt = IdentifierFormat.CAMEL_CASE; // default
-
-    if (identifierFormatRaw != null && !identifierFormatRaw.isJsonNull()) {
-      if (identifierFormatRaw.isJsonPrimitive() && identifierFormatRaw.getAsJsonPrimitive().isString()) {
-        // Forma plana: "camel case" | "snake case" | "CAMEL_CASE" | "SNAKE_CASE"
-        idFmt = parseFmt(identifierFormatRaw.getAsString());
-        idEnabled = true; // por defecto activada si el usuario especifica formato plano
-      } else if (identifierFormatRaw.isJsonObject()) {
-        var obj = identifierFormatRaw.getAsJsonObject();
-        if (obj.has("enabled") && !obj.get("enabled").isJsonNull()) {
-          idEnabled = obj.get("enabled").getAsBoolean();
-        }
-        if (obj.has("format") && !obj.get("format").isJsonNull()) {
-          idFmt = parseFmt(obj.get("format").getAsString());
-        }
-      }
-    }
-
-    // ----- printlnRestrictions -----
-    boolean prEnabled = true;          // default
-    boolean allowOnly = true;          // default (solo literal/identificador)
-
-    if (printlnRestrictionsRaw != null && !printlnRestrictionsRaw.isJsonNull()) {
-      if (printlnRestrictionsRaw.isJsonPrimitive()) {
-        var prim = printlnRestrictionsRaw.getAsJsonPrimitive();
-        if (prim.isBoolean()) {
-          prEnabled = prim.getAsBoolean();
-          // keep allowOnly default si es boolean plano
-        }
-      } else if (printlnRestrictionsRaw.isJsonObject()) {
-        var obj = printlnRestrictionsRaw.getAsJsonObject();
-        if (obj.has("enabled") && !obj.get("enabled").isJsonNull()) {
-          prEnabled = obj.get("enabled").getAsBoolean();
-        }
-        if (obj.has("allowOnlyIdentifiersAndLiterals") && !obj.get("allowOnlyIdentifiersAndLiterals").isJsonNull()) {
-          allowOnly = obj.get("allowOnlyIdentifiersAndLiterals").getAsBoolean();
-        }
-        // Aliases opcionales si tu TCK los usa:
-        if (obj.has("allow_only_identifiers_and_literals") && !obj.get("allow_only_identifiers_and_literals").isJsonNull()) {
-          allowOnly = obj.get("allow_only_identifiers_and_literals").getAsBoolean();
-        }
-        if (obj.has("mandatory-variable-or-literal-in-println") && !obj.get("mandatory-variable-or-literal-in-println").isJsonNull()) {
-          allowOnly = obj.get("mandatory-variable-or-literal-in-println").getAsBoolean();
-        }
-      }
-    }
-
-    // ----- meta -----
-    int max = (maxErrors != null) ? maxErrors : 100;
-    boolean warn = (enableWarnings != null) ? enableWarnings : true;
-    boolean strict = (strictMode != null) ? strictMode : false;
+  /** Traduce el DTO a tu config real. */
+  public AnalyzerConfig toAnalyzerConfig() {
+    IdentifierFormat fmt = parseIdentifierFormatOrDefault(identifierFormat, IdentifierFormat.CAMEL_CASE);
 
     return new AnalyzerConfig(
-        new IdentifierFormatConfig(idEnabled, idFmt),
-        new PrintlnRestrictionConfig(prEnabled, allowOnly),
-        max,
-        warn,
-        strict
+        new IdentifierFormatConfig(),
+        new PrintlnRestrictionConfig(),
+        maxErrors == null ? Integer.MAX_VALUE : maxErrors,
+        Boolean.TRUE.equals(enableWarnings),
+        Boolean.TRUE.equals(strictMode)
     );
   }
 
-  private static IdentifierFormat parseFmt(String raw) {
-    if (raw == null) return IdentifierFormat.CAMEL_CASE;
-    String norm = raw.trim()
-        .replace('-', ' ')
-        .replace('_', ' ')
-        .replaceAll("\\s+", " ")
-        .toUpperCase();
-    if (norm.equals("CAMEL CASE") || norm.equals("CAMELCASE") || norm.equals("CAMEL")) {
+  private static IdentifierFormat parseIdentifierFormatOrDefault(String raw, IdentifierFormat defaultFmt) {
+    if (raw == null) return defaultFmt;
+    String s = raw.trim().toLowerCase();
+    if (s.equals("camelcase") || s.equals("camel_case") || s.equals("camel")) {
       return IdentifierFormat.CAMEL_CASE;
     }
-    if (norm.equals("SNAKE CASE") || norm.equals("SNAKECASE") || norm.equals("SNAKE")) {
+    if (s.equals("snakecase") || s.equals("snake_case") || s.equals("snake")) {
       return IdentifierFormat.SNAKE_CASE;
     }
-    // Si ya vino en "CAMEL_CASE" / "SNAKE_CASE"
-    try {
-      return IdentifierFormat.valueOf(raw.trim().toUpperCase().replace(' ', '_'));
-    } catch (IllegalArgumentException ignored) {
-      return IdentifierFormat.CAMEL_CASE; // fallback seguro
-    }
+    return defaultFmt; // validación/errores los maneja el core
   }
 }

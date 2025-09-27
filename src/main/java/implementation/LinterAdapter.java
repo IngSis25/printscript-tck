@@ -43,7 +43,7 @@ public class LinterAdapter implements PrintScriptLinter {
 
       Reader cfgReader = loader.streamToReader(config);
       LinterConfigAdapter cfgAdapter = gson.fromJson(cfgReader, LinterConfigAdapter.class);
-      AnalyzerConfig analyzerCfg = cfgAdapter.toConfig();
+      AnalyzerConfig analyzerCfg = cfgAdapter.toAnalyzerConfig();
 
       Analyzer analyzer = new DefaultAnalyzer();
       AnalysisResult result = analyzer.analyze(ast, analyzerCfg);
