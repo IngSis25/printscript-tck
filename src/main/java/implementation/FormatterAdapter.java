@@ -12,6 +12,7 @@ import main.kotlin.lexer.Lexer;
 import main.kotlin.lexer.Token;
 import org.example.ast.ASTNode;
 import org.example.formatter.FormatterVisitor;
+import org.example.formatter.Formatter;
 import org.example.formatter.config.FormatterConfig;
 
 import java.io.InputStream;
@@ -19,6 +20,8 @@ import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.io.Reader;
 import java.io.Writer;
+import java.io.File;
+import java.io.FileWriter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
@@ -47,7 +50,7 @@ public class FormatterAdapter implements PrintScriptFormatter {
             FormatterConfigAdapter cfgAdapter = gson.fromJson(cfgReader, FormatterConfigAdapter.class);
             FormatterConfig cfg = cfgAdapter.toConfig();
 
-            // 5) Visita y escritura
+            // 5) Visita y escritura normal con todas las reglas
             StringBuilder out = new StringBuilder();
             new FormatterVisitor(cfg, out).evaluateMultiple(ast);
             writer.write(out.toString());
@@ -73,6 +76,15 @@ public class FormatterAdapter implements PrintScriptFormatter {
             String line;
             while ((line = br.readLine()) != null) sb.append(line).append('\n');
             return sb.toString();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    // Lee el archivo preservando exactamente el formato original (sin agregar \n)
+    private String readAllPreservingFormat(InputStream is) {
+        try {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

@@ -43,8 +43,7 @@ public class InterpreterAdapter implements PrintScriptInterpreter {
       OutputAdapter out = new OutputAdapter(output);
       DefaultInterpreter interpreter = new DefaultInterpreter(out, provider);
 
-      // 🚫 NO crear BlockNode artificial
-      // ✅ Si el parser devolvió un BlockNode raíz, lo desempaquetamos
+
       if (ast.size() == 1 && ast.get(0) instanceof BlockNode) {
         BlockNode block = (BlockNode) ast.get(0);
         for (ASTNode stmt : block.getStatements()) {
@@ -77,7 +76,7 @@ public class InterpreterAdapter implements PrintScriptInterpreter {
 
   private StrategyProvider selectProvider(String version) {
     if (version != null && version.trim().startsWith("1.1")) {
-      return PreConfiguredProviders.INSTANCE.getVERSION_1_1(); // 👈 Kotlin object desde Java
+      return PreConfiguredProviders.INSTANCE.getVERSION_1_1();
     }
     return PreConfiguredProviders.INSTANCE.getVERSION_1_0();
   }
