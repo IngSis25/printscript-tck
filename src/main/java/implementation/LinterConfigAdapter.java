@@ -8,53 +8,103 @@ import main.kotlin.analyzer.PrintlnRestrictionConfig;
 
 /**
  * Adapter de configuración del Linter.
- * Solo mapea JSON/YAML -> AnalyzerConfig del core (sin lógica del lenguaje).
+ * Mapea JSON (anidado o plano) -> AnalyzerConfig del core.
  */
 public class LinterConfigAdapter {
 
-  // camelCase / snake_case (acepta alias frecuentes)
-  @SerializedName(value = "identifier_format", alternate = {"identifierFormat"})
-  public String identifierFormat;
+    // -------- Variante LEGACY (plana) --------
+    // "identifier_format": "snake case" | "camel case" | "SNAKE_CASE" | "CAMEL_CASE"
+    @SerializedName(value = "identifier_format", alternate = {"identifierFormatString"})
+    public String identifierFormatFlat;
 
-  // true => println solo con literal o identificador (no expresiones)
-  @SerializedName(
-      value = "mandatory-variable-or-literal-in-println",
-      alternate = {"printlnRestrictions.allowOnlyIdentifiersAndLiterals"}
-  )
-  public Boolean mandatoryVarOrLiteralInPrintln;
+    // true => println solo con literal o identificador (no expresiones)
+    @SerializedName(value = "mandatory-variable-or-literal-in-println")
+    public Boolean mandatoryVarOrLiteralInPrintlnFlat;
 
-  // Flags opcionales (dejá solo los que existan en tu AnalyzerConfig)
-  @SerializedName(value = "maxErrors", alternate = {"max_errors"})
-  public Integer maxErrors;
+    // -------- Variante NUEVA (anidada) --------
+    @SerializedName("identifierFormat")
+    public IdentifierFormatDTO identifierFormat;
 
-  @SerializedName(value = "enableWarnings", alternate = {"enable_warnings"})
-  public Boolean enableWarnings;
+    @SerializedName("printlnRestrictions")
+    public PrintlnRestrictionsDTO printlnRestrictions;
 
-  @SerializedName(value = "strictMode", alternate = {"strict_mode"})
-  public Boolean strictMode;
+    // -------- Flags opcionales del core --------
+    @SerializedName(value = "maxErrors", alternate = {"max_errors"})
+    public Integer maxErrors;
 
-  /** Traduce el DTO a tu config real. */
-  public AnalyzerConfig toAnalyzerConfig() {
-    IdentifierFormat fmt = parseIdentifierFormatOrDefault(identifierFormat, IdentifierFormat.CAMEL_CASE);
+    @SerializedName(value = "enableWarnings", alternate = {"enable_warnings"})
+    public Boolean enableWarnings;
 
-    return new AnalyzerConfig(
-        new IdentifierFormatConfig(),
-        new PrintlnRestrictionConfig(),
-        maxErrors == null ? Integer.MAX_VALUE : maxErrors,
-        Boolean.TRUE.equals(enableWarnings),
-        Boolean.TRUE.equals(strictMode)
-    );
-  }
+    @SerializedName(value = "strictMode", alternate = {"strict_mode"})
+    public Boolean strictMode;
 
-  private static IdentifierFormat parseIdentifierFormatOrDefault(String raw, IdentifierFormat defaultFmt) {
-    if (raw == null) return defaultFmt;
-    String s = raw.trim().toLowerCase();
-    if (s.equals("camelcase") || s.equals("camel_case") || s.equals("camel")) {
-      return IdentifierFormat.CAMEL_CASE;
+    /** Traduce el DTO a tu config real. */
+    public AnalyzerConfig toAnalyzerConfig() {
+        boolean idEnabled;
+        IdentifierFormat idFormat;
+
+        if (identifierFormat != null) {
+            idEnabled = Boolean.TRUE.equals(identifierFormat.enabled);
+            idFormat  = parseIdentifierFormatOrDefault(identifierFormat.format, IdentifierFormat.CAMEL_CASE);
+        } else {
+            idEnabled = identifierFormatFlat != null;
+            idFormat  = parseIdentifierFormatOrDefault(identifierFormatFlat, IdentifierFormat.CAMEL_CASE);
+        }
+
+        boolean prEnabled;
+        boolean allowOnlyIdOrLit;
+
+        if (printlnRestrictions != null) {
+            prEnabled        = Boolean.TRUE.equals(printlnRestrictions.enabled);
+            allowOnlyIdOrLit = Boolean.TRUE.equals(printlnRestrictions.allowOnlyIdentifiersAndLiterals);
+        } else {
+            prEnabled        = mandatoryVarOrLiteralInPrintlnFlat != null;
+            allowOnlyIdOrLit = Boolean.TRUE.equals(mandatoryVarOrLiteralInPrintlnFlat);
+        }
+
+        int maxErr      = (maxErrors == null) ? Integer.MAX_VALUE : maxErrors;
+        boolean warnOn  = Boolean.TRUE.equals(enableWarnings);
+        boolean strict  = Boolean.TRUE.equals(strictMode);
+        IdentifierFormatConfig idCfg =
+                new IdentifierFormatConfig(idEnabled, idFormat);
+        PrintlnRestrictionConfig prCfg =
+                new PrintlnRestrictionConfig(prEnabled, allowOnlyIdOrLit);
+
+        return new AnalyzerConfig(idCfg, prCfg, maxErr, warnOn, strict);
     }
-    if (s.equals("snakecase") || s.equals("snake_case") || s.equals("snake")) {
-      return IdentifierFormat.SNAKE_CASE;
+
+    private static IdentifierFormat parseIdentifierFormatOrDefault(String raw, IdentifierFormat def) {
+        if (raw == null) return def;
+        String s = raw.trim().toLowerCase();
+
+        if (s.equals("camelcase") || s.equals("camel_case") || s.equals("camel") || s.equals("camel case") || s.equals("camel-case") || s.equals("camelcase()") || s.equals("camel_case()")) {
+            return IdentifierFormat.CAMEL_CASE;
+        }
+        if (s.equals("snakecase") || s.equals("snake_case") || s.equals("snake") || s.equals("snake case") || s.equals("snake-case") || s.equals("snakecase()") || s.equals("snake_case()")) {
+            return IdentifierFormat.SNAKE_CASE;
+        }
+
+        try {
+            return IdentifierFormat.valueOf(raw.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            return def;
+        }
     }
-    return defaultFmt; // validación/errores los maneja el core
-  }
+
+
+    public static class IdentifierFormatDTO {
+        @SerializedName("enabled")
+        public Boolean enabled;
+
+        @SerializedName(value = "format")
+        public String format;
+    }
+
+    public static class PrintlnRestrictionsDTO {
+        @SerializedName("enabled")
+        public Boolean enabled;
+
+        @SerializedName("allowOnlyIdentifiersAndLiterals")
+        public Boolean allowOnlyIdentifiersAndLiterals;
+    }
 }
