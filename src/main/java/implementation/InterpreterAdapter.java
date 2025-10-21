@@ -10,6 +10,7 @@ import interpreter.ErrorHandler;
 import interpreter.InputProvider;
 import interpreter.PrintEmitter;
 import interpreter.PrintScriptInterpreter;
+import kotlin.collections.EmptyList;
 import main.kotlin.lexer.Lexer;
 import main.kotlin.lexer.Token;
 import org.example.DefaultInterpreter;
@@ -30,19 +31,15 @@ public class InterpreterAdapter implements PrintScriptInterpreter {
   public void interpret(InputStream src, String version, InputProvider input, PrintEmitter output, ErrorHandler handler) {
     try {
       String code = readAll(src);
-
       LexerFactory lexerFactory = selectLexerFactory(version);
       ParserFactory parserFactory = selectParserFactory(version);
       Lexer lexer = lexerFactory.create();
       var parser = parserFactory.create();
-
       List<Token> tokens = lexer.tokenize(code);
       List<ASTNode> ast = parser.parse(tokens);
-
       StrategyProvider provider = selectProvider(version);
       OutputAdapter out = new OutputAdapter(output);
       DefaultInterpreter interpreter = new DefaultInterpreter(out, provider);
-
 
       if (ast.size() == 1 && ast.get(0) instanceof BlockNode) {
         BlockNode block = (BlockNode) ast.get(0);
