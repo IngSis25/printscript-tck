@@ -1,4 +1,4 @@
-package implementation;
+package implementation.linter;
 
 import com.google.gson.annotations.SerializedName;
 import main.kotlin.analyzer.AnalyzerConfig;
@@ -39,7 +39,7 @@ public class LinterConfigAdapter {
     public Boolean strictMode;
 
     /** Traduce el DTO a tu config real. */
-    public AnalyzerConfig toAnalyzerConfig() {
+    public AnalyzerConfig toAnalyzerConfig(com.google.gson.JsonObject jsonConfig) {
         boolean idEnabled;
         IdentifierFormat idFormat;
 
@@ -47,7 +47,8 @@ public class LinterConfigAdapter {
             idEnabled = Boolean.TRUE.equals(identifierFormat.enabled);
             idFormat  = parseIdentifierFormatOrDefault(identifierFormat.format, IdentifierFormat.CAMEL_CASE);
         } else {
-            idEnabled = identifierFormatFlat != null;
+            // Si no hay config, desactivar la regla
+            idEnabled = identifierFormatFlat != null && !identifierFormatFlat.trim().isEmpty();
             idFormat  = parseIdentifierFormatOrDefault(identifierFormatFlat, IdentifierFormat.CAMEL_CASE);
         }
 
@@ -58,11 +59,13 @@ public class LinterConfigAdapter {
             prEnabled        = Boolean.TRUE.equals(printlnRestrictions.enabled);
             allowOnlyIdOrLit = Boolean.TRUE.equals(printlnRestrictions.allowOnlyIdentifiersAndLiterals);
         } else {
-            prEnabled        = mandatoryVarOrLiteralInPrintlnFlat != null;
+            // Si no hay config, desactivar la regla
+            prEnabled        = mandatoryVarOrLiteralInPrintlnFlat != null && mandatoryVarOrLiteralInPrintlnFlat;
             allowOnlyIdOrLit = Boolean.TRUE.equals(mandatoryVarOrLiteralInPrintlnFlat);
         }
 
-        int maxErr      = (maxErrors == null) ? Integer.MAX_VALUE : maxErrors;
+        int maxErr      = (maxErrors == null) ? 100 : maxErrors;
+        // Si enableWarnings no está definido, desactivar por defecto
         boolean warnOn  = Boolean.TRUE.equals(enableWarnings);
         boolean strict  = Boolean.TRUE.equals(strictMode);
         IdentifierFormatConfig idCfg =
@@ -70,7 +73,9 @@ public class LinterConfigAdapter {
         PrintlnRestrictionConfig prCfg =
                 new PrintlnRestrictionConfig(prEnabled, allowOnlyIdOrLit);
 
-        return new AnalyzerConfig(idCfg, prCfg, maxErr, warnOn, strict);
+        // Si jsonConfig es null, usar el jsonConfig que necesita tu DefaultAnalyzer
+        // para que funcione sin visitors por defecto cuando no hay configuración
+        return new AnalyzerConfig(idCfg, prCfg, maxErr, warnOn, strict, jsonConfig != null ? jsonConfig : new com.google.gson.JsonObject());
     }
 
     private static IdentifierFormat parseIdentifierFormatOrDefault(String raw, IdentifierFormat def) {
