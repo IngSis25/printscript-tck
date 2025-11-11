@@ -18,17 +18,18 @@ public class InterpreterLargeFileTest {
 
     private static final String MESSAGE = "This is a text";
     private static final String LINE = "println(\"" + MESSAGE + "\");\n";
-    private static final int NUMBER_OF_LINES = 32 * 1024; // Aumentado para probar memoria
+    private static final int NUMBER_OF_LINES = 64 * 1024;
+    private static final int NUMBER_OF_LINES2 = 34 * 1024;// Aumentado para forzar OOM en el collector
     private final PrintScriptInterpreter interpreter = new CustomImplementationFactory().interpreter();
 
     @Test
     public void testWithCounter() {
         final PrintCounter printCounter = new PrintCounter(message -> Objects.equals(message, MESSAGE));
         final ErrorCollector errorCollector = new ErrorCollector();
-        interpreter.execute(new MockInputStream(LINE, NUMBER_OF_LINES), "1.0", printCounter, errorCollector, (ignored) -> "");
+        interpreter.execute(new MockInputStream(LINE, NUMBER_OF_LINES2), "1.0", printCounter, errorCollector, (ignored) -> "");
 
         assertThat(errorCollector.getErrors(), is(emptyList()));
-        assertThat(printCounter.getCount(), is(NUMBER_OF_LINES));
+        assertThat(printCounter.getCount(), is(NUMBER_OF_LINES2));
     }
 
     @Test
