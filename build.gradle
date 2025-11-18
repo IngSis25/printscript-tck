@@ -1,20 +1,35 @@
- plugins {
+plugins {
     id 'java'
-     id 'org.jetbrains.kotlin.jvm'
- }
+    id 'org.jetbrains.kotlin.jvm'
+}
+
+// 1) Definimos las credenciales en variables
+def gprUser = findProperty("gpr.user") ?:
+        System.getenv("USERNAME") ?:
+                System.getenv("GITHUB_ACTOR")
+
+def gprKey = findProperty("gpr.key") ?:
+        System.getenv("TOKEN") ?:
+                System.getenv("GITHUB_TOKEN")
+
+// 2) Logueamos qué se está usando (solo usuario y si hay token)
+println ">>> GitHub Packages username: ${gprUser}"
+println ">>> GitHub Packages token presente: ${gprKey != null}"
 
 repositories {
     mavenLocal()
     mavenCentral()
     maven {
         name = "GitHubPackages"
-        url = uri("https://maven.pkg.github.com/IngSis25/PrintScript")
+        // mejor todo minúsculas por las dudas
+        url = uri("https://maven.pkg.github.com/ingsis25/printscript")
         credentials {
-            username = findProperty('gpr.user') ?: System.getenv('GITHUB_ACTOR')
-            password = findProperty('gpr.key')  ?: System.getenv('GITHUB_TOKEN')
+            username = gprUser
+            password = gprKey
         }
     }
 }
+
 
 java {
     toolchain {
@@ -43,4 +58,3 @@ test {
     environment "BEST_FOOTBALL_CLUB", "San Lorenzo"
     useJUnit()
 }
-
